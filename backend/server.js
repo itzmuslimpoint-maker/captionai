@@ -7,20 +7,31 @@ import { exec } from "child_process";
 import fetch from "node-fetch";
 
 const app = express();
-app.use(cors());
 
+// ✅ CORS + body limit
+app.use(cors());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// ✅ root route (blank fix)
+app.get("/", (req, res) => {
+  res.send("🚀 CaptionAI Backend is running");
+});
+
+// ✅ upload config
 const upload = multer({ dest: "uploads/" });
 
-// ensure folders exist
+// ✅ ensure folders exist
 if (!fs.existsSync("uploads")) fs.mkdirSync("uploads");
 if (!fs.existsSync("outputs")) fs.mkdirSync("outputs");
 
+// ✅ API route
 app.post("/api/transcribe", upload.single("video"), async (req, res) => {
   try {
     const videoPath = req.file.path;
     const audioPath = `outputs/${req.file.filename}.wav`;
 
-    // 🎧 Step 1: Extract audio using ffmpeg
+    // 🎬 Step 1: Extract audio using ffmpeg
     await new Promise((resolve, reject) => {
       exec(
         `ffmpeg -i ${videoPath} -ar 16000 -ac 1 -c:a pcm_s16le ${audioPath}`,
@@ -31,7 +42,7 @@ app.post("/api/transcribe", upload.single("video"), async (req, res) => {
       );
     });
 
-    // 🔑 Step 2: Call NVIDIA Whisper API
+    // 🔑 Step 2: NVIDIA Whisper API
     const apiKey = process.env.NVIDIA_API_KEY;
 
     const response = await fetch(
@@ -48,7 +59,7 @@ app.post("/api/transcribe", upload.single("video"), async (req, res) => {
 
     const result = await response.json();
 
-    // ⚡ Step 3: Format response
+    // 🧠 Step 3: format captions
     const captions = (result.segments || []).map((seg, i) => ({
       id: i,
       start: seg.start,
@@ -63,7 +74,7 @@ app.post("/api/transcribe", upload.single("video"), async (req, res) => {
       wordCount: captions.length,
     });
 
-    // 🧹 cleanup (optional)
+    // 🧹 cleanup
     fs.unlinkSync(videoPath);
     fs.unlinkSync(audioPath);
   } catch (err) {
@@ -72,6 +83,9 @@ app.post("/api/transcribe", upload.single("video"), async (req, res) => {
   }
 });
 
-app.listen(3001, () => {
-  console.log("🚀 Backend running on http://localhost:3001");
+// ✅ IMPORTANT: dynamic port for Render
+const PORT = process.env.PORT || 3001;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Backend running on port ${PORT}`);
 });
